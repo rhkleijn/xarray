@@ -1,14 +1,37 @@
 """Base classes implementing arithmetic for xarray objects."""
 import numbers
+from typing import TYPE_CHECKING
 
 import numpy as np
 
+from .common import ImplementsArrayReduce, ImplementsDatasetReduce
+from .ops import (
+    SupportsAllOpsAndReduceMethods,
+    SupportsBinaryOps,
+    SupportsMostOpsAndReduceMethods,
+    SupportsReduceMethods,
+)
 from .options import OPTIONS, _get_keep_attrs
 from .pycompat import dask_array_type
-from .utils import not_implemented
+
+if TYPE_CHECKING:
+    # _typed_ops.pyi is a generated stub file
+    from ._typed_ops import (
+        TypedDataArrayGroupByOps,
+        TypedDataArrayOps,
+        TypedDatasetGroupByOps,
+        TypedDatasetOps,
+        TypedVariableOps,
+    )
+else:
+    TypedDataArrayOps = object
+    TypedDataArrayGroupByOps = object
+    TypedDatasetOps = object
+    TypedDatasetGroupByOps = object
+    TypedVariableOps = object
 
 
-class SupportsArithmetic:
+class SupportsArrayUFunc:
     """Base class for xarray types that support arithmetic.
 
     Used by Dataset, DataArray, Variable and GroupBy.
@@ -35,7 +58,7 @@ class SupportsArithmetic:
         # See the docstring example for numpy.lib.mixins.NDArrayOperatorsMixin.
         out = kwargs.get("out", ())
         for x in inputs + out:
-            if not isinstance(x, self._HANDLED_TYPES + (SupportsArithmetic,)):
+            if not isinstance(x, self._HANDLED_TYPES + (SupportsArrayUFunc,)):
                 return NotImplemented
 
         if ufunc.signature is not None:
@@ -55,7 +78,7 @@ class SupportsArithmetic:
                 "to NumPy arrays (e.g., with `.values`).".format(method, ufunc)
             )
 
-        if any(isinstance(o, SupportsArithmetic) for o in out):
+        if any(isinstance(o, SupportsArrayUFunc) for o in out):
             # TODO: implement this with logic like _inplace_binary_op. This
             # will be necessary to use NDArrayOperatorsMixin.
             raise NotImplementedError(
@@ -80,26 +103,66 @@ class SupportsArithmetic:
             keep_attrs=_get_keep_attrs(default=True),
         )
 
-    # this has no runtime function - these are listed so IDEs know these
-    # methods are defined and don't warn on these operations
-    __lt__ = (
-        __le__
-    ) = (
-        __ge__
-    ) = (
-        __gt__
-    ) = (
-        __add__
-    ) = (
-        __sub__
-    ) = (
-        __mul__
-    ) = (
-        __truediv__
-    ) = (
-        __floordiv__
-    ) = (
-        __mod__
-    ) = (
-        __pow__
-    ) = __and__ = __xor__ = __or__ = __div__ = __eq__ = __ne__ = not_implemented
+
+class VariableArithmetic(
+    ImplementsArrayReduce,
+    SupportsAllOpsAndReduceMethods,
+    SupportsArrayUFunc,
+    TypedVariableOps,
+):
+    __slots__ = ()
+    # prioritize our operations over those of numpy.ndarray (priority=0)
+    __array_priority__ = 50
+
+
+class DatasetArithmetic(
+    ImplementsDatasetReduce,
+    SupportsMostOpsAndReduceMethods,
+    SupportsArrayUFunc,
+    TypedDatasetOps,
+):
+    __slots__ = ()
+    __array_priority__ = 50
+
+
+class DataArrayArithmetic(
+    ImplementsArrayReduce,
+    SupportsAllOpsAndReduceMethods,
+    SupportsArrayUFunc,
+    TypedDataArrayOps,
+):
+    __slots__ = ()
+    # priority must be higher than Variable to properly work with binary ufuncs
+    __array_priority__ = 60
+
+
+class GroupbyArithmetic(
+    SupportsReduceMethods,
+    SupportsBinaryOps,
+    SupportsArrayUFunc,
+):
+    __slots__ = ()
+
+
+class DataArrayGroupbyArithmetic(
+    ImplementsArrayReduce, GroupbyArithmetic, TypedDataArrayGroupByOps
+):
+    __slots__ = ()
+
+
+class DatasetGroupbyArithmetic(
+    ImplementsDatasetReduce, GroupbyArithmetic, TypedDatasetGroupByOps
+):
+    __slots__ = ()
+
+
+class ResampleArithmetic(
+    SupportsReduceMethods,
+    SupportsBinaryOps,
+    SupportsArrayUFunc,  # BinaryOpsTyping
+):
+    __slots__ = ()
+
+
+class CoarsenArithmetic(SupportsReduceMethods):
+    __slots__ = ()

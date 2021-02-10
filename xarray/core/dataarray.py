@@ -43,6 +43,7 @@ from .alignment import (
     align,
     reindex_like_indexers,
 )
+from .arithmetic import DataArrayArithmetic
 from .common import AbstractArray, DataWithCoords
 from .coordinates import (
     DataArrayCoordinates,
@@ -65,9 +66,9 @@ from .variable import (
     assert_unique_multiindex_level_names,
 )
 
+T_DSorDA = TypeVar("T_DSorDA", "DataArray", Dataset)
+T_DataArray = TypeVar("T_DataArray", bound="DataArray")
 if TYPE_CHECKING:
-    T_DSorDA = TypeVar("T_DSorDA", "DataArray", Dataset)
-
     try:
         from dask.delayed import Delayed
     except ImportError:
@@ -213,7 +214,7 @@ class _LocIndexer:
 _THIS_ARRAY = ReprObject("<this-array>")
 
 
-class DataArray(AbstractArray, DataWithCoords):
+class DataArray(AbstractArray, DataWithCoords, DataArrayArithmetic):
     """N-dimensional array with labeled coordinates and dimensions.
 
     DataArray provides a wrapper around numpy ndarrays that uses
@@ -419,12 +420,12 @@ class DataArray(AbstractArray, DataWithCoords):
         self._file_obj = None
 
     def _replace(
-        self,
+        self: T_DataArray,
         variable: Variable = None,
         coords=None,
         name: Union[Hashable, None, Default] = _default,
         indexes=None,
-    ) -> "DataArray":
+    ) -> T_DataArray:
         if variable is None:
             variable = self.variable
         if coords is None:
@@ -2465,7 +2466,7 @@ class DataArray(AbstractArray, DataWithCoords):
 
     def reduce(
         self,
-        func: Callable[..., Any],
+        func: Callable,
         dim: Union[None, Hashable, Sequence[Hashable]] = None,
         axis: Union[None, int, Sequence[int]] = None,
         keep_attrs: bool = None,
@@ -2851,20 +2852,20 @@ class DataArray(AbstractArray, DataWithCoords):
         else:
             return None
 
-    def __array_wrap__(self, obj, context=None) -> "DataArray":
+    def __array_wrap__(self: T_DataArray, obj, context=None) -> T_DataArray:
         new_var = self.variable.__array_wrap__(obj, context)
         return self._replace(new_var)
 
-    def __matmul__(self, obj):
-        return self.dot(obj)
+    def __matmul__(self: T_DataArray, other) -> T_DataArray:
+        return self.dot(other)
 
-    def __rmatmul__(self, other):
+    def __rmatmul__(self: T_DataArray, other) -> T_DataArray:
         # currently somewhat duplicative, as only other DataArrays are
         # compatible with matmul
         return computation.dot(other, self)
 
     @staticmethod
-    def _unary_op(f: Callable[..., Any]) -> Callable[..., "DataArray"]:
+    def _unary_op(f: Callable) -> Callable[..., "DataArray"]:
         @functools.wraps(f)
         def func(self, *args, **kwargs):
             keep_attrs = kwargs.pop("keep_attrs", None)
@@ -2885,7 +2886,7 @@ class DataArray(AbstractArray, DataWithCoords):
 
     @staticmethod
     def _binary_op(
-        f: Callable[..., Any],
+        f: Callable,
         reflexive: bool = False,
         join: str = None,  # see xarray.align
         **ignored_kwargs,
@@ -2905,7 +2906,7 @@ class DataArray(AbstractArray, DataWithCoords):
                 if not reflexive
                 else f(other_variable, self.variable)
             )
-            coords, indexes = self.coords._merge_raw(other_coords)
+            coords, indexes = self.coords._merge_raw(other_coords, reflexive)
             name = self._result_name(other)
 
             return self._replace(variable, coords, name, indexes=indexes)
@@ -3128,8 +3129,10 @@ class DataArray(AbstractArray, DataWithCoords):
         return self._replace(self.variable.imag)
 
     def dot(
-        self, other: "DataArray", dims: Union[Hashable, Sequence[Hashable], None] = None
-    ) -> "DataArray":
+        self: T_DataArray,
+        other: "DataArray",
+        dims: Union[Hashable, Sequence[Hashable], None] = None,
+    ) -> T_DataArray:
         """Perform dot product of two DataArrays along their shared dims.
 
         Equivalent to taking taking tensordot over all shared dims.
@@ -3501,11 +3504,11 @@ class DataArray(AbstractArray, DataWithCoords):
 
     def map_blocks(
         self,
-        func: "Callable[..., T_DSorDA]",
+        func: Callable[..., T_DSorDA],
         args: Sequence[Any] = (),
         kwargs: Mapping[str, Any] = None,
         template: Union["DataArray", "Dataset"] = None,
-    ) -> "T_DSorDA":
+    ) -> T_DSorDA:
         """
         Apply a function to each block of this DataArray.
 
@@ -4240,7 +4243,3 @@ class DataArray(AbstractArray, DataWithCoords):
     # this needs to be at the end, or mypy will confuse with `str`
     # https://mypy.readthedocs.io/en/latest/common_issues.html#dealing-with-conflicting-names
     str = utils.UncachedAccessor(StringAccessor)
-
-
-# priority most be higher than Variable to properly work with binary ufuncs
-ops.inject_all_ops_and_reduce_methods(DataArray, priority=60)

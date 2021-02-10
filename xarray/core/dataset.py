@@ -51,11 +51,8 @@ from . import (
     weighted,
 )
 from .alignment import _broadcast_helper, _get_broadcast_dims_map_common_coords, align
-from .common import (
-    DataWithCoords,
-    ImplementsDatasetReduce,
-    _contains_datetime_like_objects,
-)
+from .arithmetic import DatasetArithmetic
+from .common import DataWithCoords, _contains_datetime_like_objects
 from .coordinates import (
     DatasetCoordinates,
     LevelCoordinatesSource,
@@ -508,7 +505,7 @@ class _LocIndexer:
         return self.dataset.sel(key)
 
 
-class Dataset(Mapping, ImplementsDatasetReduce, DataWithCoords):
+class Dataset(DataWithCoords, DatasetArithmetic, Mapping):
     """A multi-dimensional, in memory, array database.
 
     A dataset resembles an in-memory representation of a NetCDF file,
@@ -6849,6 +6846,3 @@ class Dataset(Mapping, ImplementsDatasetReduce, DataWithCoords):
                 "dicts cannot be contained in a Dataset, so cannot call "
                 "Dataset.argmin() with a sequence or ... for dim"
             )
-
-
-ops.inject_all_ops_and_reduce_methods(Dataset, array_only=False)

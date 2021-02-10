@@ -23,7 +23,9 @@ import pandas as pd
 
 import xarray as xr  # only for Dataset and DataArray
 
-from . import arithmetic, common, dtypes, duck_array_ops, indexing, nputils, ops, utils
+from . import common, dtypes, duck_array_ops, indexing, nputils, ops, utils
+from .arithmetic import VariableArithmetic
+from .common import AbstractArray
 from .indexing import (
     BasicIndexer,
     OuterIndexer,
@@ -40,6 +42,7 @@ from .pycompat import (
     is_duck_dask_array,
 )
 from .utils import (
+    NdimSizeLenMixin,
     OrderedSet,
     _default,
     decode_numpy_dict_values,
@@ -61,7 +64,7 @@ NON_NUMPY_SUPPORTED_ARRAY_TYPES = (
 # https://github.com/python/mypy/issues/224
 BASIC_INDEXING_TYPES = integer_types + (slice,)  # type: ignore
 
-VariableType = TypeVar("VariableType", bound="Variable")
+T_Variable = TypeVar("T_Variable", bound="Variable")
 """Type annotation to be used when methods of Variable return self or a copy of self.
 When called from an instance of a subclass, e.g. IndexVariable, mypy identifies the
 output as an instance of the subclass.
@@ -69,7 +72,7 @@ output as an instance of the subclass.
 Usage::
 
    class Variable:
-       def f(self: VariableType, ...) -> VariableType:
+       def f(self: T_Variable, ...) -> T_Variable:
            ...
 """
 
@@ -280,9 +283,7 @@ def _as_array_or_item(data):
     return data
 
 
-class Variable(
-    common.AbstractArray, arithmetic.SupportsArithmetic, utils.NdimSizeLenMixin
-):
+class Variable(AbstractArray, NdimSizeLenMixin, VariableArithmetic):
     """A netcdf-like variable consisting of dimensions, data and attributes
     which describe a single Array. A single Variable object is not fully
     described outside the context of its parent Dataset (if you want such a
@@ -371,7 +372,7 @@ class Variable(
         self._data = data
 
     def astype(
-        self: VariableType,
+        self: T_Variable,
         dtype,
         *,
         order=None,
@@ -379,7 +380,7 @@ class Variable(
         subok=None,
         copy=None,
         keep_attrs=True,
-    ) -> VariableType:
+    ) -> T_Variable:
         """
         Copy of the Variable object, with data cast to a specified type.
 
@@ -782,7 +783,7 @@ class Variable(
 
         return out_dims, VectorizedIndexer(tuple(out_key)), new_order
 
-    def __getitem__(self: VariableType, key) -> VariableType:
+    def __getitem__(self: T_Variable, key) -> T_Variable:
         """Return a new Variable object whose contents are consistent with
         getting the provided key from the underlying data.
 
@@ -801,7 +802,7 @@ class Variable(
             data = duck_array_ops.moveaxis(data, range(len(new_order)), new_order)
         return self._finalize_indexing_result(dims, data)
 
-    def _finalize_indexing_result(self: VariableType, dims, data) -> VariableType:
+    def _finalize_indexing_result(self: T_Variable, dims, data) -> T_Variable:
         """Used by IndexVariable to return IndexVariable objects when possible."""
         return type(self)(dims, data, self._attrs, self._encoding, fastpath=True)
 
@@ -901,7 +902,7 @@ class Variable(
         except ValueError:
             raise ValueError("encoding must be castable to a dictionary")
 
-    def copy(self, deep=True, data=None):
+    def copy(self: T_Variable, deep=True, data=None) -> T_Variable:
         """Returns a copy of this object.
 
         If `deep=True`, the data array is loaded into memory and copied onto
@@ -983,8 +984,12 @@ class Variable(
         return self._replace(data=data)
 
     def _replace(
-        self, dims=_default, data=_default, attrs=_default, encoding=_default
-    ) -> "Variable":
+        self: T_Variable,
+        dims=_default,
+        data=_default,
+        attrs=_default,
+        encoding=_default,
+    ) -> T_Variable:
         if dims is _default:
             dims = copy.copy(self._dims)
         if data is _default:
@@ -1120,11 +1125,11 @@ class Variable(
         return self.copy(deep=False)
 
     def isel(
-        self: VariableType,
+        self: T_Variable,
         indexers: Mapping[Hashable, Any] = None,
         missing_dims: str = "raise",
         **indexers_kwargs: Any,
-    ) -> VariableType:
+    ) -> T_Variable:
         """Return a new array indexed along the specified dimension(s).
 
         Parameters
@@ -2222,7 +2227,10 @@ class Variable(
         def func(self, other):
             if isinstance(other, (xr.DataArray, xr.Dataset)):
                 return NotImplemented
-            self_data, other_data, dims = _broadcast_compat_data(self, other)
+            if reflexive and issubclass(type(self), type(other)):
+                other_data, self_data, dims = _broadcast_compat_data(other, self)
+            else:
+                self_data, other_data, dims = _broadcast_compat_data(self, other)
             keep_attrs = _get_keep_attrs(default=False)
             attrs = self._attrs if keep_attrs else None
             with np.errstate(all="ignore"):
@@ -2419,9 +2427,6 @@ class Variable(
         DataArray.argmax, DataArray.idxmax
         """
         return self._unravel_argminmax("argmax", dim, axis, keep_attrs, skipna)
-
-
-ops.inject_all_ops_and_reduce_methods(Variable)
 
 
 class IndexVariable(Variable):
@@ -2664,7 +2669,7 @@ def _broadcast_compat_variables(*variables):
     """Create broadcast compatible variables, with the same dimensions.
 
     Unlike the result of broadcast_variables(), some variables may have
-    dimensions of size 1 instead of the the size of the broadcast dimension.
+    dimensions of size 1 instead of the size of the broadcast dimension.
     """
     dims = tuple(_unified_dims(variables))
     return tuple(var.set_dims(dims) if var.dims != dims else var for var in variables)
