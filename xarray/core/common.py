@@ -3,6 +3,7 @@ from contextlib import suppress
 from html import escape
 from textwrap import dedent
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
@@ -11,6 +12,7 @@ from typing import (
     Iterator,
     List,
     Mapping,
+    Optional,
     Tuple,
     TypeVar,
     Union,
@@ -29,6 +31,12 @@ from .utils import Frozen, either_dict_or_kwargs, is_scalar
 # Used as a sentinel value to indicate a all dimensions
 ALL_DIMS = ...
 
+
+if TYPE_CHECKING:
+    from .dataarray import DataArray
+    from .weighted import Weighted
+
+T_DataWithCoords = TypeVar("T_DataWithCoords", bound="DataWithCoords")
 
 C = TypeVar("C")
 T = TypeVar("T")
@@ -178,7 +186,7 @@ class AbstractArray:
 
         Immutable.
 
-        See also
+        See Also
         --------
         Dataset.sizes
         """
@@ -209,14 +217,14 @@ class AttrAccessMixin:
         super().__init_subclass__(**kwargs)
 
     @property
-    def _attr_sources(self) -> List[Mapping[Hashable, Any]]:
-        """List of places to look-up items for attribute-style access"""
-        return []
+    def _attr_sources(self) -> Iterable[Mapping[Hashable, Any]]:
+        """Places to look-up items for attribute-style access"""
+        yield from ()
 
     @property
-    def _item_sources(self) -> List[Mapping[Hashable, Any]]:
-        """List of places to look-up items for key-autocompletion"""
-        return []
+    def _item_sources(self) -> Iterable[Mapping[Hashable, Any]]:
+        """Places to look-up items for key-autocompletion"""
+        yield from ()
 
     def __getattr__(self, name: str) -> Any:
         if name not in {"__dict__", "__setstate__"}:
@@ -272,26 +280,26 @@ class AttrAccessMixin:
         """Provide method name lookup and completion. Only provide 'public'
         methods.
         """
-        extra_attrs = [
+        extra_attrs = set(
             item
-            for sublist in self._attr_sources
-            for item in sublist
+            for source in self._attr_sources
+            for item in source
             if isinstance(item, str)
-        ]
-        return sorted(set(dir(type(self)) + extra_attrs))
+        )
+        return sorted(set(dir(type(self))) | extra_attrs)
 
     def _ipython_key_completions_(self) -> List[str]:
         """Provide method for the key-autocompletions in IPython.
         See http://ipython.readthedocs.io/en/stable/config/integrating.html#tab-completion
         For the details.
         """
-        item_lists = [
+        items = set(
             item
-            for sublist in self._item_sources
-            for item in sublist
+            for source in self._item_sources
+            for item in source
             if isinstance(item, str)
-        ]
-        return list(set(item_lists))
+        )
+        return list(items)
 
 
 def get_squeeze_dims(
@@ -330,7 +338,9 @@ def get_squeeze_dims(
 class DataWithCoords(AttrAccessMixin):
     """Shared base class for Dataset and DataArray."""
 
-    __slots__ = ()
+    _close: Optional[Callable[[], None]]
+
+    __slots__ = ("_close",)
 
     _rolling_exp_cls = RollingExp
 
@@ -375,8 +385,7 @@ class DataWithCoords(AttrAccessMixin):
         try:
             return self.indexes[key]
         except KeyError:
-            # need to ensure dtype=int64 in case range is empty on Python 2
-            return pd.Index(range(self.sizes[key]), name=key, dtype=np.int64)
+            return pd.Index(range(self.sizes[key]), name=key)
 
     def _calc_assign_results(
         self: C, kwargs: Mapping[Hashable, Union[T, Callable[[C], T]]]
@@ -400,7 +409,6 @@ class DataWithCoords(AttrAccessMixin):
             defined and attached to an existing dimension using a tuple with
             the first element the dimension name and the second element the
             values for this new coordinate.
-
         **coords_kwargs : optional
             The keyword arguments form of ``coords``.
             One of ``coords`` or ``coords_kwargs`` must be provided.
@@ -461,7 +469,7 @@ class DataWithCoords(AttrAccessMixin):
         is possible, but you cannot reference other variables created within
         the same ``assign_coords`` call.
 
-        See also
+        See Also
         --------
         Dataset.assign
         Dataset.swap_dims
@@ -489,7 +497,7 @@ class DataWithCoords(AttrAccessMixin):
         assigned : same type as caller
             A new object with the new attrs in addition to the existing data.
 
-        See also
+        See Also
         --------
         Dataset.assign
         """
@@ -528,7 +536,6 @@ class DataWithCoords(AttrAccessMixin):
 
         Notes
         -----
-
         Use ``.pipe`` when chaining together functions that expect
         xarray or pandas objects, e.g., instead of writing
 
@@ -552,7 +559,6 @@ class DataWithCoords(AttrAccessMixin):
 
         Examples
         --------
-
         >>> import numpy as np
         >>> import xarray as xr
         >>> x = xr.Dataset(
@@ -770,7 +776,9 @@ class DataWithCoords(AttrAccessMixin):
             },
         )
 
-    def weighted(self, weights):
+    def weighted(
+        self: T_DataWithCoords, weights: "DataArray"
+    ) -> "Weighted[T_DataWithCoords]":
         """
         Weighted operations.
 
@@ -802,7 +810,7 @@ class DataWithCoords(AttrAccessMixin):
 
         Parameters
         ----------
-        dim: dict, optional
+        dim : dict, optional
             Mapping from the dimension name to create the rolling iterator
             along (e.g. `time`) to its moving window size.
         min_periods : int, default: None
@@ -1090,7 +1098,6 @@ class DataWithCoords(AttrAccessMixin):
 
         References
         ----------
-
         .. [1] http://pandas.pydata.org/pandas-docs/stable/timeseries.html#offset-aliases
         """
         # TODO support non-string indexer after removing the old API.
@@ -1178,7 +1185,6 @@ class DataWithCoords(AttrAccessMixin):
 
         Examples
         --------
-
         >>> import numpy as np
         >>> a = xr.DataArray(np.arange(25).reshape(5, 5), dims=("x", "y"))
         >>> a
@@ -1224,7 +1230,7 @@ class DataWithCoords(AttrAccessMixin):
                [15., nan, nan, nan]])
         Dimensions without coordinates: x, y
 
-        See also
+        See Also
         --------
         numpy.where : corresponding numpy function
         where : equivalent function
@@ -1264,11 +1270,27 @@ class DataWithCoords(AttrAccessMixin):
 
         return ops.where_method(self, cond, other)
 
+    def set_close(self, close: Optional[Callable[[], None]]) -> None:
+        """Register the function that releases any resources linked to this object.
+
+        This method controls how xarray cleans up resources associated
+        with this object when the ``.close()`` method is called. It is mostly
+        intended for backend developers and it is rarely needed by regular
+        end-users.
+
+        Parameters
+        ----------
+        close : callable
+            The function that when called like ``close()`` releases
+            any resources linked to this object.
+        """
+        self._close = close
+
     def close(self: Any) -> None:
-        """Close any files linked to this object"""
-        if self._file_obj is not None:
-            self._file_obj.close()
-        self._file_obj = None
+        """Release any resources linked to this object."""
+        if self._close is not None:
+            self._close()
+        self._close = None
 
     def isnull(self, keep_attrs: bool = None):
         """Test each value in the array for whether it is a missing value.
@@ -1359,14 +1381,13 @@ class DataWithCoords(AttrAccessMixin):
 
         Examples
         --------
-
         >>> array = xr.DataArray([1, 2, 3], dims="x")
         >>> array.isin([1, 3])
         <xarray.DataArray (x: 3)>
         array([ True, False,  True])
         Dimensions without coordinates: x
 
-        See also
+        See Also
         --------
         numpy.isin
         """
@@ -1425,7 +1446,6 @@ class DataWithCoords(AttrAccessMixin):
             * 'same_kind' means only safe casts or casts within a kind,
               like float64 to float32, are allowed.
             * 'unsafe' means any data conversions may be done.
-
         subok : bool, optional
             If True, then sub-classes will be passed-through, otherwise the
             returned array will be forced to be a base-class array.
@@ -1450,7 +1470,7 @@ class DataWithCoords(AttrAccessMixin):
         Make sure to only supply these arguments if the underlying array class
         supports them.
 
-        See also
+        See Also
         --------
         numpy.ndarray.astype
         dask.array.Array.astype
@@ -1506,7 +1526,6 @@ def full_like(other, fill_value, dtype: DTypeLike = None):
 
     Examples
     --------
-
     >>> import numpy as np
     >>> import xarray as xr
     >>> x = xr.DataArray(
@@ -1582,9 +1601,8 @@ def full_like(other, fill_value, dtype: DTypeLike = None):
         a        (x) bool True True True
         b        (x) float64 2.0 2.0 2.0
 
-    See also
+    See Also
     --------
-
     zeros_like
     ones_like
 
@@ -1665,7 +1683,6 @@ def zeros_like(other, dtype: DTypeLike = None):
 
     Examples
     --------
-
     >>> import numpy as np
     >>> import xarray as xr
     >>> x = xr.DataArray(
@@ -1697,9 +1714,8 @@ def zeros_like(other, dtype: DTypeLike = None):
       * lat      (lat) int64 1 2
       * lon      (lon) int64 0 1 2
 
-    See also
+    See Also
     --------
-
     ones_like
     full_like
 
@@ -1725,7 +1741,6 @@ def ones_like(other, dtype: DTypeLike = None):
 
     Examples
     --------
-
     >>> import numpy as np
     >>> import xarray as xr
     >>> x = xr.DataArray(
@@ -1749,9 +1764,8 @@ def ones_like(other, dtype: DTypeLike = None):
       * lat      (lat) int64 1 2
       * lon      (lon) int64 0 1 2
 
-    See also
+    See Also
     --------
-
     zeros_like
     full_like
 
