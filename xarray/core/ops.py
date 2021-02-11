@@ -332,7 +332,7 @@ def inject_numpy_same(cls):
         setattr(cls, name, _values_method_wrapper(name))
 
 
-class SupportsBinaryOps:
+class IncludeBinaryOps:
     __slots__ = ()
 
     def __init_subclass__(cls, **kwargs):
@@ -341,7 +341,7 @@ class SupportsBinaryOps:
             inject_binary_ops(cls)
 
 
-class SupportsReduceMethods:
+class IncludeReduceMethods:
     __slots__ = ()
 
     def __init_subclass__(cls, **kwargs):
@@ -350,7 +350,7 @@ class SupportsReduceMethods:
             inject_reduce_methods(cls)
 
 
-class SupportsMostOpsAndReduceMethods(SupportsBinaryOps, SupportsReduceMethods):
+class IncludeMostOpsAndReduceMethods(IncludeBinaryOps, IncludeReduceMethods):
     __slots__ = ()
 
     def __init_subclass__(cls, **kwargs):
@@ -368,7 +368,7 @@ class SupportsMostOpsAndReduceMethods(SupportsBinaryOps, SupportsReduceMethods):
             inject_cum_methods(cls)
 
 
-class SupportsAllOpsAndReduceMethods(SupportsMostOpsAndReduceMethods):
+class IncludeAllOpsAndReduceMethods(IncludeMostOpsAndReduceMethods):
     __slots__ = ()
 
     def __init_subclass__(cls, **kwargs):

@@ -6,10 +6,10 @@ import numpy as np
 
 from .common import ImplementsArrayReduce, ImplementsDatasetReduce
 from .ops import (
-    SupportsAllOpsAndReduceMethods,
-    SupportsBinaryOps,
-    SupportsMostOpsAndReduceMethods,
-    SupportsReduceMethods,
+    IncludeAllOpsAndReduceMethods,
+    IncludeBinaryOps,
+    IncludeMostOpsAndReduceMethods,
+    IncludeReduceMethods,
 )
 from .options import OPTIONS, _get_keep_attrs
 from .pycompat import dask_array_type
@@ -24,10 +24,10 @@ if TYPE_CHECKING:
         TypedVariableOps,
     )
 else:
-    TypedDataArrayOps = object
     TypedDataArrayGroupByOps = object
-    TypedDatasetOps = object
+    TypedDataArrayOps = object
     TypedDatasetGroupByOps = object
+    TypedDatasetOps = object
     TypedVariableOps = object
 
 
@@ -106,7 +106,7 @@ class SupportsArrayUFunc:
 
 class VariableArithmetic(
     ImplementsArrayReduce,
-    SupportsAllOpsAndReduceMethods,
+    IncludeAllOpsAndReduceMethods,
     SupportsArrayUFunc,
     TypedVariableOps,
 ):
@@ -117,7 +117,7 @@ class VariableArithmetic(
 
 class DatasetArithmetic(
     ImplementsDatasetReduce,
-    SupportsMostOpsAndReduceMethods,
+    IncludeMostOpsAndReduceMethods,
     SupportsArrayUFunc,
     TypedDatasetOps,
 ):
@@ -127,7 +127,7 @@ class DatasetArithmetic(
 
 class DataArrayArithmetic(
     ImplementsArrayReduce,
-    SupportsAllOpsAndReduceMethods,
+    IncludeAllOpsAndReduceMethods,
     SupportsArrayUFunc,
     TypedDataArrayOps,
 ):
@@ -136,33 +136,25 @@ class DataArrayArithmetic(
     __array_priority__ = 60
 
 
-class GroupbyArithmetic(
-    SupportsReduceMethods,
-    SupportsBinaryOps,
-    SupportsArrayUFunc,
-):
-    __slots__ = ()
-
-
 class DataArrayGroupbyArithmetic(
-    ImplementsArrayReduce, GroupbyArithmetic, TypedDataArrayGroupByOps
+    ImplementsArrayReduce,
+    IncludeReduceMethods,
+    IncludeBinaryOps,
+    SupportsArrayUFunc,
+    TypedDataArrayGroupByOps,
 ):
     __slots__ = ()
 
 
 class DatasetGroupbyArithmetic(
-    ImplementsDatasetReduce, GroupbyArithmetic, TypedDatasetGroupByOps
+    ImplementsDatasetReduce,
+    IncludeReduceMethods,
+    IncludeBinaryOps,
+    SupportsArrayUFunc,
+    TypedDatasetGroupByOps,
 ):
     __slots__ = ()
 
 
-class ResampleArithmetic(
-    SupportsReduceMethods,
-    SupportsBinaryOps,
-    SupportsArrayUFunc,  # BinaryOpsTyping
-):
-    __slots__ = ()
-
-
-class CoarsenArithmetic(SupportsReduceMethods):
+class CoarsenArithmetic(IncludeReduceMethods):
     __slots__ = ()

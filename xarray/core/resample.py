@@ -1,12 +1,11 @@
 import warnings
 
-from .arithmetic import ResampleArithmetic
 from .groupby import DataArrayGroupBy, DatasetGroupBy
 
 RESAMPLE_DIM = "__resample_dim__"
 
 
-class Resample(ResampleArithmetic):
+class Resample:
     """An object that extends the `GroupBy` object with additional logic
     for handling specialized re-sampling operations.
 
