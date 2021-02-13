@@ -16,11 +16,8 @@ from xarray.core import utils
 from xarray.core.duck_array_ops import allclose_or_equiv  # noqa: F401
 from xarray.core.indexing import ExplicitlyIndexed
 from xarray.core.options import set_options
-from xarray.testing import (  # noqa: F401
-    assert_chunks_equal,
-    assert_duckarray_allclose,
-    assert_duckarray_equal,
-)
+from xarray.testing import assert_chunks_equal  # noqa: F401
+from xarray.testing import assert_duckarray_allclose, assert_duckarray_equal
 
 # import mpl and change the backend before other mpl imports
 try:

@@ -1,5 +1,4 @@
 import copy
-import functools
 import itertools
 import numbers
 import warnings
@@ -983,7 +982,9 @@ class Variable(AbstractArray, NdimSizeLenMixin, VariableArithmetic):
         # attributes and encoding will be copied when the new Array is created
         return self._replace(data=data)
 
-    def _replace(self, dims=_default, data=_default, attrs=_default, encoding=_default):
+    def _replace(
+        self, dims=_default, data=_default, attrs=_default, encoding=_default
+    ) -> "Variable":
         if dims is _default:
             dims = copy.copy(self._dims)
         if data is _default:
@@ -2260,58 +2261,41 @@ class Variable(AbstractArray, NdimSizeLenMixin, VariableArithmetic):
     def __array_wrap__(self, obj, context=None):
         return Variable(self.dims, obj)
 
-    @staticmethod
-    def _unary_op(f):
-        @functools.wraps(f)
-        def func(self, *args, **kwargs):
-            keep_attrs = kwargs.pop("keep_attrs", None)
-            if keep_attrs is None:
-                keep_attrs = _get_keep_attrs(default=True)
-            with np.errstate(all="ignore"):
-                result = self.__array_wrap__(f(self.data, *args, **kwargs))
-                if keep_attrs:
-                    result.attrs = self.attrs
-                return result
-
-        return func
-
-    @staticmethod
-    def _binary_op(f, reflexive=False, **ignored_kwargs):
-        @functools.wraps(f)
-        def func(self, other):
-            if isinstance(other, (xr.DataArray, xr.Dataset)):
-                return NotImplemented
-            if reflexive and issubclass(type(self), type(other)):
-                other_data, self_data, dims = _broadcast_compat_data(other, self)
-            else:
-                self_data, other_data, dims = _broadcast_compat_data(self, other)
-            keep_attrs = _get_keep_attrs(default=False)
-            attrs = self._attrs if keep_attrs else None
-            with np.errstate(all="ignore"):
-                new_data = (
-                    f(self_data, other_data)
-                    if not reflexive
-                    else f(other_data, self_data)
-                )
-            result = Variable(dims, new_data, attrs=attrs)
+    def _unary_op(self, f, *args, **kwargs):
+        keep_attrs = kwargs.pop("keep_attrs", None)
+        if keep_attrs is None:
+            keep_attrs = _get_keep_attrs(default=True)
+        with np.errstate(all="ignore"):
+            result = self.__array_wrap__(f(self.data, *args, **kwargs))
+            if keep_attrs:
+                result.attrs = self.attrs
             return result
 
-        return func
-
-    @staticmethod
-    def _inplace_binary_op(f):
-        @functools.wraps(f)
-        def func(self, other):
-            if isinstance(other, xr.Dataset):
-                raise TypeError("cannot add a Dataset to a Variable in-place")
+    def _binary_op(self, other, f, reflexive=False):
+        if isinstance(other, (xr.DataArray, xr.Dataset)):
+            return NotImplemented
+        if reflexive and issubclass(type(self), type(other)):
+            other_data, self_data, dims = _broadcast_compat_data(other, self)
+        else:
             self_data, other_data, dims = _broadcast_compat_data(self, other)
-            if dims != self.dims:
-                raise ValueError("dimensions cannot change for in-place operations")
-            with np.errstate(all="ignore"):
-                self.values = f(self_data, other_data)
-            return self
+        keep_attrs = _get_keep_attrs(default=False)
+        attrs = self._attrs if keep_attrs else None
+        with np.errstate(all="ignore"):
+            new_data = (
+                f(self_data, other_data) if not reflexive else f(other_data, self_data)
+            )
+        result = Variable(dims, new_data, attrs=attrs)
+        return result
 
-        return func
+    def _inplace_binary_op(self, other, f):
+        if isinstance(other, xr.Dataset):
+            raise TypeError("cannot add a Dataset to a Variable in-place")
+        self_data, other_data, dims = _broadcast_compat_data(self, other)
+        if dims != self.dims:
+            raise ValueError("dimensions cannot change for in-place operations")
+        with np.errstate(all="ignore"):
+            self.values = f(self_data, other_data)
+        return self
 
     def _to_numeric(self, offset=None, datetime_unit=None, dtype=float):
         """A (private) method to convert datetime array to numeric dtype

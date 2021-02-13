@@ -1,34 +1,24 @@
 """Base classes implementing arithmetic for xarray objects."""
 import numbers
-from typing import TYPE_CHECKING
 
 import numpy as np
 
+# _typed_ops.py is a generated file
+from ._typed_ops import (
+    DataArrayGroupByOps,
+    DataArrayOps,
+    DatasetGroupByOps,
+    DatasetOps,
+    VariableOps,
+)
 from .common import ImplementsArrayReduce, ImplementsDatasetReduce
 from .ops import (
     IncludeAllOpsAndReduceMethods,
-    IncludeBinaryOps,
     IncludeMostOpsAndReduceMethods,
     IncludeReduceMethods,
 )
 from .options import OPTIONS, _get_keep_attrs
 from .pycompat import dask_array_type
-
-if TYPE_CHECKING:
-    # _typed_ops.pyi is a generated stub file
-    from ._typed_ops import (
-        TypedDataArrayGroupByOps,
-        TypedDataArrayOps,
-        TypedDatasetGroupByOps,
-        TypedDatasetOps,
-        TypedVariableOps,
-    )
-else:
-    TypedDataArrayGroupByOps = object
-    TypedDataArrayOps = object
-    TypedDatasetGroupByOps = object
-    TypedDatasetOps = object
-    TypedVariableOps = object
 
 
 class SupportsArithmetic:
@@ -108,7 +98,7 @@ class VariableArithmetic(
     ImplementsArrayReduce,
     IncludeAllOpsAndReduceMethods,
     SupportsArithmetic,
-    TypedVariableOps,
+    VariableOps,
 ):
     __slots__ = ()
     # prioritize our operations over those of numpy.ndarray (priority=0)
@@ -119,7 +109,7 @@ class DatasetArithmetic(
     ImplementsDatasetReduce,
     IncludeMostOpsAndReduceMethods,
     SupportsArithmetic,
-    TypedDatasetOps,
+    DatasetOps,
 ):
     __slots__ = ()
     __array_priority__ = 50
@@ -129,7 +119,7 @@ class DataArrayArithmetic(
     ImplementsArrayReduce,
     IncludeAllOpsAndReduceMethods,
     SupportsArithmetic,
-    TypedDataArrayOps,
+    DataArrayOps,
 ):
     __slots__ = ()
     # priority must be higher than Variable to properly work with binary ufuncs
@@ -139,9 +129,8 @@ class DataArrayArithmetic(
 class DataArrayGroupbyArithmetic(
     ImplementsArrayReduce,
     IncludeReduceMethods,
-    IncludeBinaryOps,
     SupportsArithmetic,
-    TypedDataArrayGroupByOps,
+    DataArrayGroupByOps,
 ):
     __slots__ = ()
 
@@ -149,9 +138,8 @@ class DataArrayGroupbyArithmetic(
 class DatasetGroupbyArithmetic(
     ImplementsDatasetReduce,
     IncludeReduceMethods,
-    IncludeBinaryOps,
     SupportsArithmetic,
-    TypedDatasetGroupByOps,
+    DatasetGroupByOps,
 ):
     __slots__ = ()
 
