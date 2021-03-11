@@ -289,11 +289,11 @@ def inplace_to_noninplace_op(f):
     return NON_INPLACE_OP[f]
 
 
+# _typed_ops.py uses the following wrapped functions as a kind of unary operator
 argsort = _method_wrapper("argsort")
 clip = _method_wrapper("clip")
 conj = _method_wrapper("conj")
 conjugate = _method_wrapper("conjugate")
-
 round_ = _func_slash_method_wrapper(duck_array_ops.around, name="round")
 
 
@@ -314,7 +314,7 @@ class IncludeReduceMethods:
             inject_reduce_methods(cls)
 
 
-class IncludeMostOpsAndReduceMethods(IncludeReduceMethods):
+class IncludeCumMethods:
     __slots__ = ()
 
     def __init_subclass__(cls, **kwargs):
@@ -324,11 +324,10 @@ class IncludeMostOpsAndReduceMethods(IncludeReduceMethods):
             inject_cum_methods(cls)
 
 
-class IncludeAllOpsAndReduceMethods(IncludeMostOpsAndReduceMethods):
+class IncludeNumpySameMethods:
     __slots__ = ()
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
 
-        if getattr(cls, "_reduce_method", None):
-            inject_numpy_same(cls)  # some methods not applicable to Dataset objects
+        inject_numpy_same(cls)  # some methods not applicable to Dataset objects

@@ -5,18 +5,14 @@ import numpy as np
 
 # _typed_ops.py is a generated file
 from ._typed_ops import (
-    DataArrayGroupByOps,
-    DataArrayOps,
-    DatasetGroupByOps,
-    DatasetOps,
-    VariableOps,
+    DataArrayGroupByOpsMixin,
+    DataArrayOpsMixin,
+    DatasetGroupByOpsMixin,
+    DatasetOpsMixin,
+    VariableOpsMixin,
 )
 from .common import ImplementsArrayReduce, ImplementsDatasetReduce
-from .ops import (
-    IncludeAllOpsAndReduceMethods,
-    IncludeMostOpsAndReduceMethods,
-    IncludeReduceMethods,
-)
+from .ops import IncludeCumMethods, IncludeNumpySameMethods, IncludeReduceMethods
 from .options import OPTIONS, _get_keep_attrs
 from .pycompat import dask_array_type
 
@@ -96,9 +92,11 @@ class SupportsArithmetic:
 
 class VariableArithmetic(
     ImplementsArrayReduce,
-    IncludeAllOpsAndReduceMethods,
+    IncludeReduceMethods,
+    IncludeCumMethods,
+    IncludeNumpySameMethods,
     SupportsArithmetic,
-    VariableOps,
+    VariableOpsMixin,
 ):
     __slots__ = ()
     # prioritize our operations over those of numpy.ndarray (priority=0)
@@ -107,9 +105,10 @@ class VariableArithmetic(
 
 class DatasetArithmetic(
     ImplementsDatasetReduce,
-    IncludeMostOpsAndReduceMethods,
+    IncludeReduceMethods,
+    IncludeCumMethods,
     SupportsArithmetic,
-    DatasetOps,
+    DatasetOpsMixin,
 ):
     __slots__ = ()
     __array_priority__ = 50
@@ -117,9 +116,11 @@ class DatasetArithmetic(
 
 class DataArrayArithmetic(
     ImplementsArrayReduce,
-    IncludeAllOpsAndReduceMethods,
+    IncludeReduceMethods,
+    IncludeCumMethods,
+    IncludeNumpySameMethods,
     SupportsArithmetic,
-    DataArrayOps,
+    DataArrayOpsMixin,
 ):
     __slots__ = ()
     # priority must be higher than Variable to properly work with binary ufuncs
@@ -130,7 +131,7 @@ class DataArrayGroupbyArithmetic(
     ImplementsArrayReduce,
     IncludeReduceMethods,
     SupportsArithmetic,
-    DataArrayGroupByOps,
+    DataArrayGroupByOpsMixin,
 ):
     __slots__ = ()
 
@@ -139,7 +140,7 @@ class DatasetGroupbyArithmetic(
     ImplementsDatasetReduce,
     IncludeReduceMethods,
     SupportsArithmetic,
-    DatasetGroupByOps,
+    DatasetGroupByOpsMixin,
 ):
     __slots__ = ()
 
