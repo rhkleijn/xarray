@@ -51,7 +51,7 @@ jobs:
         id: pixi-lock
         with:
           pixi-version: ${{env.PIXI_VERSION}}
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: pixi-lock
           path: pixi.lock
@@ -164,7 +164,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: Test results for OS ${{ runner.os }} pixi-env ${{ matrix.pixi-env }} pytest-addopts ${{ matrix.pytest-addopts }}
           path: pytest.xml
@@ -186,7 +186,7 @@ jobs:
     if: github.repository == 'pydata/xarray'
     steps:
       - name: Upload
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: Event File
           path: ${{ github.event_path }}
